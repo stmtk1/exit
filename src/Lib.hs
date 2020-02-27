@@ -9,22 +9,40 @@ import Control.Concurrent
 
 someFunc :: IO ()
 someFunc = do
-    loop 100 $ evalState (genCells 20 20) (mkStdGen 10)
+    loop 100 $ evalState (genCells 4 4) (mkStdGen 10)
     return ()
 
-data Cell = None | Wall | Person
+data Cell = None | Wall | Person deriving Eq
 
 newtype Cells = Cells { unwrapCells :: [[Cell]]}
+    deriving Eq
 
 instance Show Cells where
     show = showCells
 
 loop :: Int -> Cells -> IO Cells
 loop 0 cells = return cells
-loop n cells = do
-    putStrLn $ show $ Cells $ squareWall $ unwrapCells cells
-    threadDelay (500 * 1000)
-    loop (n - 1) $ nextState cells
+loop n cells
+    | personNum cells == personNum next = do
+        putStrLn $ show $ Cells $ squareWall $ unwrapCells cells
+        threadDelay (500 * 1000)
+        loop (n - 1) $ next
+    | otherwise = do
+        putStrLn $ show $ Cells $ squareWall $ unwrapCells cells
+        putStrLn $ show $ Cells $ squareWall $ unwrapCells next
+        return cells
+            where
+                next = nextState cells
+
+personNum :: Cells -> Int
+personNum cells = ret
+    where
+        isPerson :: Cell -> Bool
+        isPerson Person = True
+        isPerson _ = False
+        personNumColumn :: [Cell] -> Int
+        personNumColumn col = length $ filter isPerson col
+        ret = sum $ map personNumColumn $ unwrapCells cells
 
 genCell :: State StdGen Cell
 genCell = (\t -> if t then Person else None) <$> state random
@@ -36,19 +54,22 @@ showCells :: Cells -> String
 showCells cells = join $ map showCellColumn $ unwrapCells cells
 
 showCellColumn :: [Cell] -> String
-showCellColumn cells = foldl (\a b -> (showCell b) ++ a) "\n" cells
+showCellColumn cells = foldl (\a b -> a ++ [showCell b]) "\n" cells
 
-showCell :: Cell -> String
-showCell Wall = "+"
-showCell None = " "
-showCell Person = "*"
+showCell :: Cell -> Char
+showCell Wall = '+'
+showCell None = ' '
+showCell Person = '*'
 
 nextStateCell :: [Cell] -> [Cell] -> [Cell] -> Cell
 nextStateCell _ [_, Wall, _] _ = Wall
 nextStateCell _ _ [_, Person, _] = Person
 nextStateCell _ [_, _, Person] _ = Person
 nextStateCell _ [_, None, _] _ = None
-nextStateCell [_, Person, _] _ _ = None
+nextStateCell [None, Person, _] _ _ = None
+nextStateCell [_, None, _] _ _ = None
+nextStateCell [_, Person, _] _ _ = Person
+nextStateCell [Person, _, _] _ _ = Person
 nextStateCell _ [None, _, _] [None, _, _] = None
 nextStateCell _ _ _ = Person
 
