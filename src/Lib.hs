@@ -6,6 +6,7 @@ import Control.Monad (join)
 import System.Random 
 import Control.Monad.State.Strict
 import Control.Concurrent
+import qualified Data.Vector as Vector
 
 someFunc :: IO ()
 someFunc = do
@@ -14,7 +15,10 @@ someFunc = do
 
 data Cell = None | Wall | Person deriving Eq
 
-newtype Cells = Cells { unwrapCells :: [[Cell]]}
+type CellCol = Vector.Vector Cell
+type CellMat = Vector.Vector CellCol
+
+newtype Cells = Cells { unwrapCells :: CellMat}
     deriving Eq
 
 instance Show Cells where
@@ -40,26 +44,37 @@ personNum cells = ret
         isPerson :: Cell -> Bool
         isPerson Person = True
         isPerson _ = False
-        personNumColumn :: [Cell] -> Int
-        personNumColumn col = length $ filter isPerson col
-        ret = sum $ map personNumColumn $ unwrapCells cells
+        personNumColumn :: CellCol -> Int
+        personNumColumn col = Vector.length $ Vector.filter isPerson col
+        ret = sum $ Vector.map personNumColumn $ unwrapCells cells
 
 genCell :: State StdGen Cell
 genCell = (\t -> if t then Person else None) <$> state random
 
 genCells :: Int -> Int -> State StdGen Cells
-genCells n m = Cells <$> (replicateM n $ replicateM m genCell)
+genCells n m = Cells <$> (Vector.replicateM n $ Vector.replicateM m genCell)
 
 showCells :: Cells -> String
-showCells cells = join $ map showCellColumn $ unwrapCells cells
+showCells cells = join $ Vector.toList $ Vector.map showCellColumn $ unwrapCells cells
 
-showCellColumn :: [Cell] -> String
-showCellColumn cells = foldl (\a b -> a ++ [showCell b]) "\n" cells
+showCellColumn :: CellCol -> String
+showCellColumn cells = foldl (\a b -> a ++ [showCell b]) "\n" $ Vector.toList cells
 
 showCell :: Cell -> Char
 showCell Wall = '+'
 showCell None = ' '
 showCell Person = '*'
+
+-- canMove :: now -> up -> left -> result
+canMove :: Cell -> Cell -> Bool
+canMove None _ = True
+canMove _ None = True
+canMove _ _    = False
+
+-- isMoved :: down -> right -> result
+isMoved Person _ = True
+isMoved _ Person = True
+isMoved _ _      = False
 
 nextStateCell :: [Cell] -> [Cell] -> [Cell] -> Cell
 nextStateCell _ [_, Wall, _] _ = Wall
@@ -73,27 +88,35 @@ nextStateCell [Person, _, _] _ _ = Person
 nextStateCell _ [None, _, _] [None, _, _] = None
 nextStateCell _ _ _ = Person
 
-nextStateColumn :: [Cell] -> [Cell] -> [Cell]  -> [Cell]
+nextStateColumn :: CellCol -> CellCol -> CellCol -> CellCol
 nextStateColumn a b c
-    | length a < 3 = []
+    | Vector.length a < 3 = Vector.empty
     | otherwise = do
-        let nextHead = nextStateCell (take 3 a) (take 3 b) (take 3 c)
-            nextTail = nextStateColumn (tail a) (tail b) (tail c)
-        (nextHead:nextTail)
+        let nextHead = nextStateCell (Vector.toList $ Vector.take 3 a) (Vector.toList $ Vector.take 3 b) (Vector.toList $ Vector.take 3 c)
+            nextTail = nextStateColumn (Vector.tail a) (Vector.tail b) (Vector.tail c)
+        Vector.singleton nextHead Vector.++ nextTail
 
-nextStateMatrix :: [[Cell]] -> [[Cell]]
-nextStateMatrix mat
-    | length mat < 3 = []
+nextStateMatrix :: CellMat -> CellMat
+nextStateMatrix mat = Vector.zipWith3 nextStateColumn front now back
+    where
+        front = Vector.map (mat Vector.!) $ Vector.enumFromN 0 $ (\i -> i - 2) $ Vector.length mat
+        now = Vector.map (mat Vector.!) $ Vector.enumFromN 1 $ (\i -> i - 2) $ Vector.length mat
+        back = Vector.map (mat Vector.!) $ Vector.enumFromN 2 $ (\i -> i - 2) $ Vector.length mat
+    {-
+    | Vector.length mat < 3 = Vector.empty
     | otherwise = do
-        let (a1:a2:a3:_) = mat
-        (nextStateColumn a1 a2 a3) : nextStateMatrix (tail mat)
+        (nextStateColumn a1 a2 a3) : nextStateMatrix (Vector.tail mat)
+        where
+            a1 = 
+            (a1:a2:a3:_) = mat
+    -}
 
-addEdge :: a -> [a] -> [a]
-addEdge x xs = x : xs ++ [x]
+addEdge :: a -> Vector.Vector a -> Vector.Vector a
+addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
 
 nextState :: Cells -> Cells
 nextState cells = Cells $ nextStateMatrix $ squareWall $ unwrapCells cells
 
-squareWall :: [[Cell]] -> [[Cell]]
-squareWall a = map (addEdge Wall) $ addEdge [ Wall | _ <- [1..(length $ head a)]] a
+squareWall :: CellMat -> CellMat
+squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
 
