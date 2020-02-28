@@ -145,13 +145,20 @@ elemAt mat col row = (mat Vector.! col) Vector.! row
 data NextState = Down | Right | Stay | Space | NotMove
     deriving Eq
 
-insert :: Cells -> [Point] -> Map.Map Point NextState -> Map.Map Point NextState
-insert _ [] cont = cont
-insert cells (x:xs) cont
-    | pointCell x == Wall = Map.insert x NotMove cont
-    | isEnter cellMat x /= Space = Map.insert x (isEnter cellMat x) cont
+insert :: Cells -> Point -> Map.Map Point NextState -> Map.Map Point NextState
+insert cells x cont
+    | pointCell x == Wall              = insertThis cont
+    | isEnter cellMat x /= Space       = insertThis (isEnter cellMat x)
+    | pointCol x < 1                   = insertThis now
+    | up == Space || up == NotMove     = insertThis up
+    | pointRow x < 1                   = insertThis now
+    | left == Space || left == NotMove = insertThis left
         where
             cellMat = unwrapCells cells
+            up = (cont Map.!) $ Point ((-) 1 $ pointCol x) (pointRow x) None
+            left = (cont Map.!) $ Point (pointCol x) ((-) 1 $ pointRow x) None
+            now = if pointCell x == Person then Stay else Space
+            insertThis a = Map.insert x a cont
 
 isEnter :: CellMat -> Point -> NextState
 isEnter cells p
