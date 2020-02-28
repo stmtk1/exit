@@ -6,7 +6,9 @@ import Control.Monad (join)
 import System.Random 
 import Control.Monad.State.Strict
 import Control.Concurrent
-import qualified Data.Vector as Vector
+import Data.Vector as Vector hiding (foldl, sum)
+import qualified Data.List as List
+import qualified Data.Map as Map
 
 someFunc :: IO ()
 someFunc = do
@@ -14,6 +16,24 @@ someFunc = do
     return ()
 
 data Cell = None | Wall | Person deriving Eq
+
+data Point = Point 
+    { pointCol  :: !Int
+    , pointRow  :: !Int
+    , pointCell :: !Cell
+    }
+
+instance Eq Point where
+    (==) (Point ax ay _) (Point bx by _) = ax == bx && bx == by
+
+instance Ord Point where
+    (<=) (Point ax ay _) (Point bx by _)
+        | a < b = True
+        | b < a = False
+        | otherwise = ax <= bx
+            where
+                a = ax + ay
+                b = bx + by
 
 type CellCol = Vector.Vector Cell
 type CellMat = Vector.Vector CellCol
@@ -58,7 +78,7 @@ showCells :: Cells -> String
 showCells cells = join $ Vector.toList $ Vector.map showCellColumn $ unwrapCells cells
 
 showCellColumn :: CellCol -> String
-showCellColumn cells = foldl (\a b -> a ++ [showCell b]) "\n" $ Vector.toList cells
+showCellColumn cells = foldl (\a b -> a List.++ [showCell b]) "\n" $ Vector.toList cells
 
 showCell :: Cell -> Char
 showCell Wall = '+'
@@ -102,14 +122,6 @@ nextStateMatrix mat = Vector.zipWith3 nextStateColumn front now back
         front = Vector.map (mat Vector.!) $ Vector.enumFromN 0 $ (\i -> i - 2) $ Vector.length mat
         now = Vector.map (mat Vector.!) $ Vector.enumFromN 1 $ (\i -> i - 2) $ Vector.length mat
         back = Vector.map (mat Vector.!) $ Vector.enumFromN 2 $ (\i -> i - 2) $ Vector.length mat
-    {-
-    | Vector.length mat < 3 = Vector.empty
-    | otherwise = do
-        (nextStateColumn a1 a2 a3) : nextStateMatrix (Vector.tail mat)
-        where
-            a1 = 
-            (a1:a2:a3:_) = mat
-    -}
 
 addEdge :: a -> Vector.Vector a -> Vector.Vector a
 addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
@@ -119,4 +131,34 @@ nextState cells = Cells $ nextStateMatrix $ squareWall $ unwrapCells cells
 
 squareWall :: CellMat -> CellMat
 squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
+
+points :: Cells -> [Point]
+points cells = List.sort $ join [[Point x y ((cellMat Vector.! y) Vector.! x) | x <- [0..row]] | y <- [0..col]]
+    where
+        cellMat = unwrapCells cells
+        col = (Vector.length cellMat) - 1
+        row = (Vector.length $ Vector.head cellMat) - 1
+
+elemAt :: CellMat -> Int -> Int -> Cell
+elemAt mat col row = (mat Vector.! col) Vector.! row
+
+data NextState = Down | Right | Stay | Space | NotMove
+    deriving Eq
+
+insert :: Cells -> [Point] -> Map.Map Point NextState -> Map.Map Point NextState
+insert _ [] cont = cont
+insert cells (x:xs) cont
+    | pointCell x == Wall = Map.insert x NotMove cont
+    | isEnter cellMat x /= Space = Map.insert x (isEnter cellMat x) cont
+        where
+            cellMat = unwrapCells cells
+
+isEnter :: CellMat -> Point -> NextState
+isEnter cells p
+    | down  == Person = Down
+    | right == Person = Lib.Right
+    | otherwise = Space
+        where
+            down  = elemAt cells ((+) 1 $ pointCol p) (pointRow p)
+            right = elemAt cells (pointCol p) ((+) 1 $ pointRow p) 
 

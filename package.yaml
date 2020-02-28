@@ -24,6 +24,8 @@ dependencies:
 - random
 - mtl
 - vector
+- containers
+- heap
 
 library:
   source-dirs: src
