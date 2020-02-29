@@ -3,7 +3,7 @@ module Lib
     ) where
 
 import Control.Monad (join)
-import System.Random 
+import System.Random
 import Control.Monad.State.Strict
 import Control.Concurrent
 import Data.Vector as Vector hiding (foldl, sum)
@@ -12,16 +12,17 @@ import qualified Data.Map as Map
 
 someFunc :: IO ()
 someFunc = do
+    let cells = evalState (genCells 4 4) (mkStdGen 10)
     loop 100 $ evalState (genCells 4 4) (mkStdGen 10)
     return ()
 
-data Cell = None | Wall | Person deriving Eq
+data Cell = None | Wall | Person deriving (Eq, Show)
 
 data Point = Point 
     { pointCol  :: !Int
     , pointRow  :: !Int
     , pointCell :: !Cell
-    }
+    } deriving Show
 
 instance Eq Point where
     (==) (Point ax ay _) (Point bx by _) = ax == bx && bx == by
@@ -56,7 +57,7 @@ loop n cells
         putStrLn $ show $ Cells $ squareWall $ unwrapCells next
         return cells
             where
-                next = nextState cells
+                next = nextStateMat cells
 
 personNum :: Cells -> Int
 personNum cells = ret
@@ -126,8 +127,10 @@ nextStateMatrix mat = Vector.zipWith3 nextStateColumn front now back
 addEdge :: a -> Vector.Vector a -> Vector.Vector a
 addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
 
+{-
 nextState :: Cells -> Cells
 nextState cells = Cells $ nextStateMatrix $ squareWall $ unwrapCells cells
+-}
 
 squareWall :: CellMat -> CellMat
 squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
@@ -142,17 +145,18 @@ points cells = List.sort $ join [[Point x y ((cellMat Vector.! y) Vector.! x) | 
 elemAt :: CellMat -> Int -> Int -> Cell
 elemAt mat col row = (mat Vector.! col) Vector.! row
 
-data NextState = Down | Right | Stay | Space | NotMove
-    deriving Eq
+data NextState = Down | Right | Stay | Space | NotMove 
+    deriving (Eq, Show)
 
-insert :: Cells -> Point -> Map.Map Point NextState -> Map.Map Point NextState
-insert cells x cont
-    | pointCell x == Wall              = insertThis cont
-    | isEnter cellMat x /= Space       = insertThis (isEnter cellMat x)
-    | pointCol x < 1                   = insertThis now
-    | up == Space || up == NotMove     = insertThis up
-    | pointRow x < 1                   = insertThis now
-    | left == Space || left == NotMove = insertThis left
+insert :: Cells -> Map.Map Point NextState -> Point -> Map.Map Point NextState
+insert cells cont x
+    | pointCell x == Wall           = insertThis NotMove
+    | isEnter cellMat x /= Space    = insertThis (isEnter cellMat x)
+    | pointCol x < 1                = insertThis now
+    | up == Lib.Right && up /= Down = insertThis up
+    | pointRow x < 1                = insertThis now
+    | left /= Lib.Right             = insertThis left
+    | otherwise                     = insertThis Stay
         where
             cellMat = unwrapCells cells
             up = (cont Map.!) $ Point ((-) 1 $ pointCol x) (pointRow x) None
@@ -160,12 +164,48 @@ insert cells x cont
             now = if pointCell x == Person then Stay else Space
             insertThis a = Map.insert x a cont
 
+toCell :: NextState -> Cell
+toCell Space = None
+toCell NotMove = Wall
+toCell _ = Person
+
+map2cells :: Int -> Int -> Map.Map Point NextState -> Cells
+map2cells col row cont = ret
+    where
+        genVec :: Int -> CellCol
+        genVec index = Vector.generate row (\i -> toCell $ cont Map.! (Point index i None))
+        cellMat = Vector.generate col genVec
+        ret = Cells cellMat
+
+nextStateMat :: Cells -> Cells
+nextStateMat cells = ret
+    where
+        cellMat = unwrapCells cells
+        col = Vector.length cellMat
+        row = Vector.length $ Vector.head cellMat
+        cont = foldl (insert cells) Map.empty (points cells)
+        ret = map2cells col row cont
+
 isEnter :: CellMat -> Point -> NextState
 isEnter cells p
+    | isCorner = Space
+    | isRightEdge = toDown $ pointCell p
+    | isDownEdge = toRight $ pointCell p
     | down  == Person = Down
     | right == Person = Lib.Right
     | otherwise = Space
         where
-            down  = elemAt cells ((+) 1 $ pointCol p) (pointRow p)
-            right = elemAt cells (pointCol p) ((+) 1 $ pointRow p) 
+            downX = (+) 1 $ pointCol p
+            rightY = (+) 1 $ pointRow p
+            isDownEdge = Vector.length cells >= downX
+            isRightEdge = Vector.length (Vector.head cells) >= rightY
+            isCorner = isDownEdge && isRightEdge
+            down  = elemAt cells downX (pointRow p)
+            right = elemAt cells (pointCol p) rightY
+            toRight :: Cell -> NextState
+            toRight Person = Lib.Right
+            toRight None = Space
+            toDown :: Cell -> NextState
+            toDown Person = Down
+            toDown None = Space
 
