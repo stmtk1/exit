@@ -135,7 +135,7 @@ map2cells :: Int -> Int -> Map.Map Point NextState -> Cells
 map2cells col row cont = ret
     where
         genVec :: Int -> CellCol
-        genVec index = Vector.generate row (\i -> toCell $ cont Map.! (Point index i None))
+        genVec index = Vector.generate row (\i -> toCell $ cont Map.! (Point i index None))
         cellMat = Vector.generate col genVec
         ret = Cells cellMat
 
