@@ -17,7 +17,7 @@ import Debug.Trace (trace)
 someFunc :: IO ()
 someFunc = do
     let cells = evalState (genCells 4 4) (mkStdGen 10)
-    loop 100 $ evalState (genCells 4 4) (mkStdGen 10)
+    loop 5 $ evalState (genCells 4 4) (mkStdGen 10)
     return ()
 
 data Cell = None | Wall | Person deriving (Eq, Show)
@@ -151,16 +151,16 @@ nextState cells = ret
 isEnter :: CellMat -> Point -> NextState
 isEnter cells p
     | isCorner = Space
-    | isRightEdge = toDown $ pointCell p
-    | isDownEdge = toRight $ pointCell p
-    | down  == Person = Down
+    | isRightEdge = toDown down
+    | isDownEdge = toRight right
+    | (down == Person) = Down
     | right == Person = Lib.Right
     | otherwise = Space
         where
             downY = (+) 1 $ pointRow p
             rightX = (+) 1 $ pointCol p
-            isDownEdge = Vector.length (Vector.head cells) >= downY
-            isRightEdge = Vector.length cells >= rightX
+            isDownEdge = Vector.length (Vector.head cells) <= downY
+            isRightEdge = Vector.length cells <= rightX
             isCorner = isDownEdge && isRightEdge
             down  = elemAt cells (pointCol p) downY
             right = elemAt cells  rightX (pointRow p)
