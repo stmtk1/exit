@@ -16,8 +16,7 @@ import Debug.Trace (trace)
 
 someFunc :: IO ()
 someFunc = do
-    let cells = evalState (genCells 4 4) (mkStdGen 10)
-    loop 5 $ evalState (genCells 4 4) (mkStdGen 10)
+    loop 20 $ evalState (genCells 20 21) (mkStdGen 10)
     return ()
 
 data Cell = None | Wall | Person deriving (Eq, Show)
@@ -35,7 +34,7 @@ instance Ord Point where
     compare (Point ax ay _) (Point bx by _)
         | a < b = LT
         | b < a = GT
-        | otherwise = compare ax bx
+        | otherwise = compare ay by
             where
                 a = ax + ay
                 b = bx + by
@@ -77,7 +76,7 @@ genCell :: State StdGen Cell
 genCell = (\t -> if t then Person else None) <$> state random
 
 genCells :: Int -> Int -> State StdGen Cells
-genCells n m = Cells <$> (Vector.replicateM n $ Vector.replicateM m genCell)
+genCells n m = Cells <$> (Vector.replicateM m $ Vector.replicateM n genCell)
 
 showCells :: Cells -> String
 showCells cells = join $ Vector.toList $ Vector.map showCellColumn $ unwrapCells cells
@@ -97,11 +96,11 @@ squareWall :: CellMat -> CellMat
 squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
 
 points :: Cells -> [Point]
-points cells = List.sort $ join [[Point x y ((cellMat Vector.! y) Vector.! x) | x <- [0..row]] | y <- [0..col]]
+points cells = List.sort $ join [[Point x y (elemAt cellMat x y) | x <- [0..col]] | y <- [0..row]]
     where
         cellMat = unwrapCells cells
-        col = (Vector.length cellMat) - 1
-        row = (Vector.length $ Vector.head cellMat) - 1
+        col = (Vector.length $ Vector.head cellMat) - 1
+        row = (Vector.length cellMat) - 1
 
 elemAt :: CellMat -> Int -> Int -> Cell
 elemAt mat col row = (mat Vector.! row) Vector.! col
@@ -120,7 +119,7 @@ insert cells cont x
         where
             cellMat = unwrapCells cells
             insertThis a = Map.insert x a cont
-            enter = isEnter cellMat x
+            enter = isEnter cellMat cont x
             isNone = pointCell x == None
             willEnter = enter /= Space
             exit = canExit cont x
@@ -148,22 +147,27 @@ nextState cells = ret
         cont = foldl (insert cells) Map.empty (points cells)
         ret = map2cells col row cont
 
-isEnter :: CellMat -> Point -> NextState
-isEnter cells p
-    | isCorner = Space
-    | isRightEdge = toDown down
-    | isDownEdge = toRight right
-    | (down == Person) = Down
-    | right == Person = Lib.Right
-    | otherwise = Space
+isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
+isEnter cells cont p
+    | isCorner                = Space
+    | isRightEdge             = toDown down
+    | isDownEdge && isRightup = Space
+    | isDownEdge              = toRight right
+    | (down == Person)        = Down
+    | isRightup               = Space
+    | right == Person         = Lib.Right
+    | otherwise               = Space
         where
             downY = (+) 1 $ pointRow p
+            upY = (pointRow p) - 1
             rightX = (+) 1 $ pointCol p
-            isDownEdge = Vector.length (Vector.head cells) <= downY
-            isRightEdge = Vector.length cells <= rightX
+            isDownEdge = Vector.length cells <= downY
+            isRightEdge = Vector.length (Vector.head cells) <= rightX
             isCorner = isDownEdge && isRightEdge
             down  = elemAt cells (pointCol p) downY
             right = elemAt cells  rightX (pointRow p)
+            hasRightUp = upY >= 0 && (not isRightEdge)
+            isRightup = hasRightUp && cont Map.! (Point rightX upY None) == Down
             toRight :: Cell -> NextState
             toRight Person = Lib.Right
             toRight None = Space
