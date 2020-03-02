@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wunused-foralls #-}
+
 module Lib
     ( someFunc
     ) where
@@ -59,7 +61,7 @@ loop n cells
         putStrLn $ show $ Cells $ squareWall $ unwrapCells next
         return cells
             where
-                next = nextStateMat cells
+                next = nextState cells
 
 personNum :: Cells -> Int
 personNum cells = ret
@@ -88,53 +90,8 @@ showCell Wall = '+'
 showCell None = ' '
 showCell Person = '*'
 
-{-
--- canMove :: now -> up -> left -> result
-canMove :: Cell -> Cell -> Bool
-canMove None _ = True
-canMove _ None = True
-canMove _ _    = False
--}
-
--- isMoved :: down -> right -> result
-isMoved Person _ = True
-isMoved _ Person = True
-isMoved _ _      = False
-
-nextStateCell :: [Cell] -> [Cell] -> [Cell] -> Cell
-nextStateCell _ [_, Wall, _] _ = Wall
-nextStateCell _ _ [_, Person, _] = Person
-nextStateCell _ [_, _, Person] _ = Person
-nextStateCell _ [_, None, _] _ = None
-nextStateCell [None, Person, _] _ _ = None
-nextStateCell [_, None, _] _ _ = None
-nextStateCell [_, Person, _] _ _ = Person
-nextStateCell [Person, _, _] _ _ = Person
-nextStateCell _ [None, _, _] [None, _, _] = None
-nextStateCell _ _ _ = Person
-
-nextStateColumn :: CellCol -> CellCol -> CellCol -> CellCol
-nextStateColumn a b c
-    | Vector.length a < 3 = Vector.empty
-    | otherwise = do
-        let nextHead = nextStateCell (Vector.toList $ Vector.take 3 a) (Vector.toList $ Vector.take 3 b) (Vector.toList $ Vector.take 3 c)
-            nextTail = nextStateColumn (Vector.tail a) (Vector.tail b) (Vector.tail c)
-        Vector.singleton nextHead Vector.++ nextTail
-
-nextStateMatrix :: CellMat -> CellMat
-nextStateMatrix mat = Vector.zipWith3 nextStateColumn front now back
-    where
-        front = Vector.map (mat Vector.!) $ Vector.enumFromN 0 $ (\i -> i - 2) $ Vector.length mat
-        now = Vector.map (mat Vector.!) $ Vector.enumFromN 1 $ (\i -> i - 2) $ Vector.length mat
-        back = Vector.map (mat Vector.!) $ Vector.enumFromN 2 $ (\i -> i - 2) $ Vector.length mat
-
 addEdge :: a -> Vector.Vector a -> Vector.Vector a
 addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
-
-{-
-nextState :: Cells -> Cells
-nextState cells = Cells $ nextStateMatrix $ squareWall $ unwrapCells cells
--}
 
 squareWall :: CellMat -> CellMat
 squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
@@ -182,8 +139,8 @@ map2cells col row cont = ret
         cellMat = Vector.generate col genVec
         ret = Cells cellMat
 
-nextStateMat :: Cells -> Cells
-nextStateMat cells = ret
+nextState :: Cells -> Cells
+nextState cells = ret
     where
         cellMat = unwrapCells cells
         col = Vector.length cellMat
@@ -200,13 +157,13 @@ isEnter cells p
     | right == Person = Lib.Right
     | otherwise = Space
         where
-            downX = (+) 1 $ pointCol p
-            rightY = (+) 1 $ pointRow p
-            isDownEdge = Vector.length cells >= downX
-            isRightEdge = Vector.length (Vector.head cells) >= rightY
+            downY = (+) 1 $ pointRow p
+            rightX = (+) 1 $ pointCol p
+            isDownEdge = Vector.length (Vector.head cells) >= downY
+            isRightEdge = Vector.length cells >= rightX
             isCorner = isDownEdge && isRightEdge
-            down  = elemAt cells downX (pointRow p)
-            right = elemAt cells (pointCol p) rightY
+            down  = elemAt cells (pointCol p) downY
+            right = elemAt cells  rightX (pointRow p)
             toRight :: Cell -> NextState
             toRight Person = Lib.Right
             toRight None = Space
@@ -223,13 +180,13 @@ canExit cont p
     | left == Lib.Right = Space
     | otherwise = Stay
         where
-            topX  = (pointCol p) - 1
-            leftY = (pointRow p) - 1
-            isTopEdge = topX < 0
-            isLeftEdge = leftY < 0
+            topY  = (pointRow p) - 1
+            leftX = (pointCol p) - 1
+            isTopEdge = topY < 0
+            isLeftEdge = leftX < 0
             isCorner = isLeftEdge && isTopEdge
-            top = cont Map.! (Point topX (pointRow p) None)
-            left = cont Map.! (Point (pointCol p) leftY None)
+            top = cont Map.! (Point (pointCol p) topY None)
+            left = cont Map.! (Point leftX (pointRow p) None)
             convertTop :: NextState -> NextState
             convertTop Down = Space
             convertTop _ = Stay
