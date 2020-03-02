@@ -9,6 +9,8 @@ import Control.Concurrent
 import Data.Vector as Vector hiding (foldl, sum)
 import qualified Data.List as List
 import qualified Data.Map as Map
+import Data.Maybe
+import Debug.Trace (trace)
 
 someFunc :: IO ()
 someFunc = do
@@ -25,13 +27,13 @@ data Point = Point
     } deriving Show
 
 instance Eq Point where
-    (==) (Point ax ay _) (Point bx by _) = ax == bx && bx == by
+    (==) (Point ax ay _) (Point bx by _) = ax == bx && ay == by
 
 instance Ord Point where
-    (<=) (Point ax ay _) (Point bx by _)
-        | a < b = True
-        | b < a = False
-        | otherwise = ax <= bx
+    compare (Point ax ay _) (Point bx by _)
+        | a < b = LT
+        | b < a = GT
+        | otherwise = compare ax bx
             where
                 a = ax + ay
                 b = bx + by
@@ -86,11 +88,13 @@ showCell Wall = '+'
 showCell None = ' '
 showCell Person = '*'
 
+{-
 -- canMove :: now -> up -> left -> result
 canMove :: Cell -> Cell -> Bool
 canMove None _ = True
 canMove _ None = True
 canMove _ _    = False
+-}
 
 -- isMoved :: down -> right -> result
 isMoved Person _ = True
@@ -143,26 +147,27 @@ points cells = List.sort $ join [[Point x y ((cellMat Vector.! y) Vector.! x) | 
         row = (Vector.length $ Vector.head cellMat) - 1
 
 elemAt :: CellMat -> Int -> Int -> Cell
-elemAt mat col row = (mat Vector.! col) Vector.! row
+elemAt mat col row = (mat Vector.! row) Vector.! col
 
 data NextState = Down | Right | Stay | Space | NotMove 
     deriving (Eq, Show)
 
 insert :: Cells -> Map.Map Point NextState -> Point -> Map.Map Point NextState
 insert cells cont x
-    | pointCell x == Wall           = insertThis NotMove
-    | isEnter cellMat x /= Space    = insertThis (isEnter cellMat x)
-    | pointCol x < 1                = insertThis now
-    | up == Lib.Right && up /= Down = insertThis up
-    | pointRow x < 1                = insertThis now
-    | left /= Lib.Right             = insertThis left
-    | otherwise                     = insertThis Stay
+    | pointCell x == Wall = insertThis NotMove
+    | willEnter && isNone = insertThis enter
+    | isNone              = insertThis Space
+    | not willMove        = insertThis Stay
+    | willEnter           = insertThis enter
+    | otherwise           = insertThis Space
         where
             cellMat = unwrapCells cells
-            up = (cont Map.!) $ Point ((-) 1 $ pointCol x) (pointRow x) None
-            left = (cont Map.!) $ Point (pointCol x) ((-) 1 $ pointRow x) None
-            now = if pointCell x == Person then Stay else Space
             insertThis a = Map.insert x a cont
+            enter = isEnter cellMat x
+            isNone = pointCell x == None
+            willEnter = enter /= Space
+            exit = canExit cont x
+            willMove = exit == Space
 
 toCell :: NextState -> Cell
 toCell Space = None
@@ -209,3 +214,25 @@ isEnter cells p
             toDown Person = Down
             toDown None = Space
 
+canExit :: Map.Map Point NextState -> Point -> NextState
+canExit cont p
+    | isCorner = Stay
+    | isLeftEdge = convertTop top
+    | isTopEdge = convertLeft left
+    | top == Down = Space
+    | left == Lib.Right = Space
+    | otherwise = Stay
+        where
+            topX  = (pointCol p) - 1
+            leftY = (pointRow p) - 1
+            isTopEdge = topX < 0
+            isLeftEdge = leftY < 0
+            isCorner = isLeftEdge && isTopEdge
+            top = cont Map.! (Point topX (pointRow p) None)
+            left = cont Map.! (Point (pointCol p) leftY None)
+            convertTop :: NextState -> NextState
+            convertTop Down = Space
+            convertTop _ = Stay
+            convertLeft :: NextState -> NextState
+            convertLeft Lib.Right = Space
+            convertLeft _ = Stay
