@@ -16,7 +16,7 @@ import Debug.Trace (trace)
 
 someFunc :: IO ()
 someFunc = do
-    loop 20 $ evalState (genCells 20 21) (mkStdGen 10)
+    loop 200 $ evalState (genCells 20 21) (mkStdGen 10)
     return ()
 
 data Cell = None | Wall | Person deriving (Eq, Show)
@@ -50,15 +50,10 @@ instance Show Cells where
 
 loop :: Int -> Cells -> IO Cells
 loop 0 cells = return cells
-loop n cells
-    | personNum cells == personNum next = do
-        putStrLn $ show $ Cells $ squareWall $ unwrapCells cells
+loop n cells = do
+        putStrLn $ show $ Cells $ unwrapCells cells
         threadDelay (500 * 1000)
         loop (n - 1) $ next
-    | otherwise = do
-        putStrLn $ show $ Cells $ squareWall $ unwrapCells cells
-        putStrLn $ show $ Cells $ squareWall $ unwrapCells next
-        return cells
             where
                 next = nextState cells
 
@@ -76,7 +71,7 @@ genCell :: State StdGen Cell
 genCell = (\t -> if t then Person else None) <$> state random
 
 genCells :: Int -> Int -> State StdGen Cells
-genCells n m = Cells <$> (Vector.replicateM m $ Vector.replicateM n genCell)
+genCells n m = Cells <$> squareWall <$> (Vector.replicateM m $ Vector.replicateM n genCell)
 
 showCells :: Cells -> String
 showCells cells = join $ Vector.toList $ Vector.map showCellColumn $ unwrapCells cells
@@ -93,7 +88,9 @@ addEdge :: a -> Vector.Vector a -> Vector.Vector a
 addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
 
 squareWall :: CellMat -> CellMat
-squareWall a = Vector.map (addEdge Wall) $ addEdge (Vector.replicate (Vector.length $ Vector.head a) Wall) a
+squareWall a = Vector.map (addEdge Wall) $ addEdge edgeCol a
+    where
+        edgeCol = (Vector.// [(0, None)]) $ Vector.replicate (Vector.length $ Vector.head a) Wall
 
 points :: Cells -> [Point]
 points cells = List.sort $ join [[Point x y (elemAt cellMat x y) | x <- [0..col]] | y <- [0..row]]
@@ -170,16 +167,16 @@ isEnter cells cont p
             isRightup = hasRightUp && cont Map.! (Point rightX upY None) == Down
             toRight :: Cell -> NextState
             toRight Person = Lib.Right
-            toRight None = Space
+            toRight _ = Space
             toDown :: Cell -> NextState
             toDown Person = Down
-            toDown None = Space
+            toDown _ = Space
 
 canExit :: Map.Map Point NextState -> Point -> NextState
 canExit cont p
-    | isCorner = Stay
+    | isCorner = Space
     | isLeftEdge = convertTop top
-    | isTopEdge = convertLeft left
+    | isTopEdge = Space -- convertLeft left
     | top == Down = Space
     | left == Lib.Right = Space
     | otherwise = Stay
