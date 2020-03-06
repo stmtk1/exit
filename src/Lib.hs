@@ -11,8 +11,9 @@ import Control.Concurrent
 import Data.Vector as Vector hiding (foldl, sum)
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Maybe
+import Data.Maybe as Maybe
 import Debug.Trace (trace)
+import qualified Data.Sequence as Seq
 
 someFunc :: IO ()
 someFunc = do
@@ -92,8 +93,8 @@ squareWall a = Vector.map (addEdge Wall) $ addEdge edgeCol a
     where
         edgeCol = (Vector.// [(0, None)]) $ Vector.replicate (Vector.length $ Vector.head a) Wall
 
-points :: Cells -> [Point]
-points cells = List.sort $ join [[Point x y (elemAt cellMat x y) | x <- [0..col]] | y <- [0..row]]
+points :: Cells -> Seq.Seq Point
+points cells = Seq.fromList $ [Point x 0 (elemAt cellMat x 0) | x <- [0..col]]
     where
         cellMat = unwrapCells cells
         col = (Vector.length $ Vector.head cellMat) - 1
@@ -135,6 +136,14 @@ map2cells col row cont = ret
         cellMat = Vector.generate col genVec
         ret = Cells cellMat
 
+insertAndsearch :: Cells -> (Map.Map Point NextState, Seq.Seq Point) -> (Map.Map Point NextState, Seq.Seq Point)
+insertAndsearch cells (cont, points)
+    | points == Seq.Empty = (cont, points)
+    | isJust $ cont Map.!? next = insertAndsearch cells (cont, rest)
+    | otherwise = insertAndsearch cells (insert cells cont next, appendPoints rest)
+        where
+            next Seq.:<| rest = points
+
 nextState :: Cells -> Cells
 nextState cells = ret
     where
@@ -143,6 +152,28 @@ nextState cells = ret
         row = Vector.length $ Vector.head cellMat
         cont = foldl (insert cells) Map.empty (points cells)
         ret = map2cells col row cont
+
+appendPoints :: Cells -> Map.Map Point NextState -> Seq.Seq Point -> Seq.Seq Point
+appendPoints cells cont points = ret
+        where
+            next Seq.:<| _ = points
+            appended = Maybe.mapMaybe (\t -> appendPoint cells cont next t) [(0, 1), (1, 0), (0, -1), (-1, 0)]
+            ret = points >< appended
+
+appendPoint :: Cells -> Map.Map Point NextState -> Point -> (Int, Int) -> Maybe Point
+appendPoint cells cont p (x, y)
+    | invalidCol = Nothing
+    | invalidRow = Nothing
+    | otherwise  = Just (Point newY newX (elemAt cellMat newX newY))
+        where
+                cellMat = unwrapCells cells
+                row = Vector.length cellMat
+                col = Vector.length $ Vector.head cellMat
+                newX = (pointRow p) + x
+                newY = (pointCol p) + y
+                invalidCol = newX >= 0 && newX < col
+                invalidRow = newY >= 0 && newY < row
+
 
 isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
 isEnter cells cont p
