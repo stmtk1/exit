@@ -17,7 +17,7 @@ import qualified Data.Sequence as Seq
 
 someFunc :: IO ()
 someFunc = do
-    loop 200 $ evalState (genCells 20 21) (mkStdGen 10)
+    loop 200 $ evalState (genCells 4 4) (mkStdGen 10)
     return ()
 
 data Cell = None | Wall | Person deriving (Eq, Show)
@@ -93,8 +93,8 @@ squareWall a = Vector.map (addEdge Wall) $ addEdge edgeCol a
     where
         edgeCol = (Vector.// [(0, None)]) $ Vector.replicate (Vector.length $ Vector.head a) Wall
 
-points :: Cells -> Seq.Seq Point
-points cells = Seq.fromList $ [Point x 0 (elemAt cellMat x 0) | x <- [0..col]]
+initPoints :: Cells -> Seq.Seq Point
+initPoints cells = Seq.fromList $ [Point 0 0 (elemAt cellMat 0 0)]
     where
         cellMat = unwrapCells cells
         col = (Vector.length $ Vector.head cellMat) - 1
@@ -138,9 +138,9 @@ map2cells col row cont = ret
 
 insertAndsearch :: Cells -> (Map.Map Point NextState, Seq.Seq Point) -> (Map.Map Point NextState, Seq.Seq Point)
 insertAndsearch cells (cont, points)
-    | points == Seq.Empty = (cont, points)
+    | Prelude.null points = (cont, points)
     | isJust $ cont Map.!? next = insertAndsearch cells (cont, rest)
-    | otherwise = insertAndsearch cells (insert cells cont next, appendPoints rest)
+    | otherwise = insertAndsearch cells (insert cells cont next, appendPoints cells cont points)
         where
             next Seq.:<| rest = points
 
@@ -150,15 +150,17 @@ nextState cells = ret
         cellMat = unwrapCells cells
         col = Vector.length cellMat
         row = Vector.length $ Vector.head cellMat
-        cont = foldl (insert cells) Map.empty (points cells)
+        (cont, _) = insertAndsearch cells (Map.empty, initPoints cells)
         ret = map2cells col row cont
 
 appendPoints :: Cells -> Map.Map Point NextState -> Seq.Seq Point -> Seq.Seq Point
-appendPoints cells cont points = ret
+appendPoints cells cont points
+    | Prelude.null points = points
+    | otherwise  = ret
         where
             next Seq.:<| _ = points
-            appended = Maybe.mapMaybe (\t -> appendPoint cells cont next t) [(0, 1), (1, 0), (0, -1), (-1, 0)]
-            ret = points >< appended
+            appended = Seq.fromList $ Maybe.mapMaybe (\t -> appendPoint cells cont next t) [(0, 1), (1, 0), (0, -1), (-1, 0)]
+            ret = points Seq.>< appended
 
 appendPoint :: Cells -> Map.Map Point NextState -> Point -> (Int, Int) -> Maybe Point
 appendPoint cells cont p (x, y)
@@ -169,10 +171,10 @@ appendPoint cells cont p (x, y)
                 cellMat = unwrapCells cells
                 row = Vector.length cellMat
                 col = Vector.length $ Vector.head cellMat
-                newX = (pointRow p) + x
-                newY = (pointCol p) + y
-                invalidCol = newX >= 0 && newX < col
-                invalidRow = newY >= 0 && newY < row
+                newX = (pointCol p) + x
+                newY = (pointRow p) + y
+                invalidCol = newX < 0 || newX >= row
+                invalidRow = newY < 0 || newY >= col
 
 
 isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
