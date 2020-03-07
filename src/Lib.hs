@@ -166,25 +166,23 @@ appendPoint :: Cells -> Map.Map Point NextState -> Point -> (Int, Int) -> Maybe 
 appendPoint cells cont p (x, y)
     | invalidCol = Nothing
     | invalidRow = Nothing
-    | otherwise  = Just (Point newY newX (elemAt cellMat newX newY))
+    | otherwise  = Just (Point newY newX (elemAt cellMat newY newX))
         where
                 cellMat = unwrapCells cells
                 row = Vector.length cellMat
                 col = Vector.length $ Vector.head cellMat
-                newX = (pointCol p) + x
-                newY = (pointRow p) + y
-                invalidCol = newX < 0 || newX >= row
-                invalidRow = newY < 0 || newY >= col
+                newY = (pointCol p) + x
+                newX = (pointRow p) + y
+                invalidCol = newX < 0 || newX >= col
+                invalidRow = newY < 0 || newY >= row
 
 
 isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
 isEnter cells cont p
     | isCorner                = Space
     | isRightEdge             = toDown down
-    | isDownEdge && isRightup = Space
     | isDownEdge              = toRight right
     | (down == Person)        = Down
-    | isRightup               = Space
     | right == Person         = Lib.Right
     | otherwise               = Space
         where
@@ -196,8 +194,6 @@ isEnter cells cont p
             isCorner = isDownEdge && isRightEdge
             down  = elemAt cells (pointCol p) downY
             right = elemAt cells  rightX (pointRow p)
-            hasRightUp = upY >= 0 && (not isRightEdge)
-            isRightup = hasRightUp && cont Map.! (Point rightX upY None) == Down
             toRight :: Cell -> NextState
             toRight Person = Lib.Right
             toRight _ = Space
