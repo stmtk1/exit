@@ -171,8 +171,8 @@ appendPoint cells cont p (x, y)
                 cellMat = unwrapCells cells
                 row = Vector.length cellMat
                 col = Vector.length $ Vector.head cellMat
-                newY = (pointCol p) + x
-                newX = (pointRow p) + y
+                newY = (pointCol p) + y
+                newX = (pointRow p) + x
                 invalidCol = newX < 0 || newX >= col
                 invalidRow = newY < 0 || newY >= row
 
@@ -181,8 +181,10 @@ isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
 isEnter cells cont p
     | isCorner                = Space
     | isRightEdge             = toDown down
+    | isDownEdge && isRightUp = Space
     | isDownEdge              = toRight right
     | (down == Person)        = Down
+    | isRightUp               = Space
     | right == Person         = Lib.Right
     | otherwise               = Space
         where
@@ -191,6 +193,8 @@ isEnter cells cont p
             rightX = (+) 1 $ pointCol p
             isDownEdge = Vector.length cells <= downY
             isRightEdge = Vector.length (Vector.head cells) <= rightX
+            hasRightUp = upY >= 0 && not isRightEdge
+            isRightUp = hasRightUp && cont Map.! (Point rightX upY None) == Down
             isCorner = isDownEdge && isRightEdge
             down  = elemAt cells (pointCol p) downY
             right = elemAt cells  rightX (pointRow p)
