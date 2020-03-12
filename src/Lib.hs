@@ -64,16 +64,6 @@ loop n cells = do
             where
                 next = nextState cells
 
-personNum :: Cells -> Int
-personNum cells = ret
-    where
-        isPerson :: Cell -> Bool
-        isPerson Person = True
-        isPerson _ = False
-        personNumColumn :: CellCol -> Int
-        personNumColumn col = Vector.length $ Vector.filter isPerson col
-        ret = sum $ Vector.map personNumColumn $ unwrapCells cells
-
 genCell :: State StdGen Cell
 genCell = (\t -> if t then Person else None) <$> state random
 
@@ -152,8 +142,8 @@ nextState :: Cells -> Cells
 nextState cells = ret
     where
         cellMat = unwrapCells cells
-        col = Vector.length cellMat
-        row = Vector.length $ Vector.head cellMat
+        col = cellsColSize cells
+        row = cellsRowSize cells
         (cont, _) = insertAndsearch cells (Map.empty, initPoints cells)
         ret = map2cells col row cont
 
