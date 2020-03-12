@@ -165,6 +165,10 @@ appendPoint cells cont p (x, y)
                 invalidCol = newX < 0 || newX >= col
                 invalidRow = newY < 0 || newY >= row
 
+addDiff :: Point -> Direction -> Point
+addDiff (Point col row cell) dir = Point (col + dx) (row + dy) cell
+    where
+        (dx, dy) = toDiff dir
 
 isEnter :: Cells -> Map.Map Point NextState -> Point -> NextState
 isEnter cells cont p
@@ -180,8 +184,8 @@ isEnter cells cont p
             downY = (+) 1 $ pointRow p
             upY = (pointRow p) - 1
             rightX = (+) 1 $ pointCol p
-            isDownEdge = cellsRowSize cells <= downY
-            isRightEdge = cellsColSize cells <= rightX
+            isDownEdge = not $ haveDirection cells p Down
+            isRightEdge = not $ haveDirection cells p Lib.Right
             hasRightUp = upY >= 0 && not isRightEdge
             isRightUp = hasRightUp && cont Map.! (Point rightX upY None) == Defined Down
             isCorner = isDownEdge && isRightEdge
@@ -198,10 +202,10 @@ cellsElem :: Cells -> Int -> Int -> Cell
 cellsElem cells col row = elemAt (unwrapCells cells) col row
 
 haveDirection :: Cells -> Point -> Direction -> Bool
-haveDirection cells (Point col row _) dir
-    = dx + col >= 0 && dy + row >= 0 && dx < colSize && dy < rowSize
+haveDirection cells p dir
+    = x >= 0 && y >= 0 && x < colSize && y < rowSize
         where
-            (dx, dy) = toDiff dir
+            Point x y _ = addDiff p dir
             colSize = cellsColSize cells
             rowSize = cellsRowSize cells
 
