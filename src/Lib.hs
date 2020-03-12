@@ -90,9 +90,8 @@ squareWall a = Vector.map (addEdge Wall) $ addEdge edgeCol a
         edgeCol = (Vector.// [(0, None)]) $ Vector.replicate (Vector.length $ Vector.head a) Wall
 
 initPoints :: Cells -> Seq.Seq Point
-initPoints cells = Seq.fromList $ [Point 0 0 (elemAt cellMat 0 0)]
+initPoints cells = Seq.fromList $ [Point 0 0 (cellsElem cells 0 0)]
     where
-        cellMat = unwrapCells cells
         col = cellsColSize cells - 1
         row = cellsRowSize cells - 1
 
@@ -109,7 +108,6 @@ insert cells cont x
     | willEnter           = insertThis enter
     | otherwise           = insertThis Space
         where
-            cellMat = unwrapCells cells
             insertThis a = Map.insert x a cont
             enter = isEnter cells cont x
             isNone = pointCell x == None
@@ -127,8 +125,7 @@ map2cells col row cont = ret
     where
         genVec :: Int -> CellCol
         genVec index = Vector.generate row (\i -> toCell $ cont Map.! (Point i index None))
-        cellMat = Vector.generate col genVec
-        ret = Cells cellMat
+        ret = Cells $ Vector.generate col genVec
 
 insertAndsearch :: Cells -> (Map.Map Point NextState, Seq.Seq Point) -> (Map.Map Point NextState, Seq.Seq Point)
 insertAndsearch cells (cont, points)
@@ -141,7 +138,6 @@ insertAndsearch cells (cont, points)
 nextState :: Cells -> Cells
 nextState cells = ret
     where
-        cellMat = unwrapCells cells
         col = cellsColSize cells
         row = cellsRowSize cells
         (cont, _) = insertAndsearch cells (Map.empty, initPoints cells)
@@ -160,9 +156,8 @@ appendPoint :: Cells -> Map.Map Point NextState -> Point -> (Int, Int) -> Maybe 
 appendPoint cells cont p (x, y)
     | invalidCol = Nothing
     | invalidRow = Nothing
-    | otherwise  = Just (Point newY newX (elemAt cellMat newY newX))
+    | otherwise  = Just (Point newY newX (cellsElem cells newY newX))
         where
-                cellMat = unwrapCells cells
                 col = cellsColSize cells
                 row = cellsRowSize cells
                 newY = (pointCol p) + y
@@ -182,7 +177,6 @@ isEnter cells cont p
     | right == Person         = Defined Lib.Right
     | otherwise               = Space
         where
-            cellMat = unwrapCells cells
             downY = (+) 1 $ pointRow p
             upY = (pointRow p) - 1
             rightX = (+) 1 $ pointCol p
