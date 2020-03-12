@@ -121,7 +121,7 @@ insert cells cont x
         where
             cellMat = unwrapCells cells
             insertThis a = Map.insert x a cont
-            enter = isEnter cellMat cont x
+            enter = isEnter cells cont x
             isNone = pointCell x == None
             willEnter = enter /= Space
             exit = canExit cont x
@@ -173,15 +173,15 @@ appendPoint cells cont p (x, y)
     | otherwise  = Just (Point newY newX (elemAt cellMat newY newX))
         where
                 cellMat = unwrapCells cells
-                row = Vector.length cellMat
-                col = Vector.length $ Vector.head cellMat
+                col = cellsColSize cells
+                row = cellsRowSize cells
                 newY = (pointCol p) + y
                 newX = (pointRow p) + x
                 invalidCol = newX < 0 || newX >= col
                 invalidRow = newY < 0 || newY >= row
 
 
-isEnter :: CellMat -> Map.Map Point NextState -> Point -> NextState
+isEnter :: Cells -> Map.Map Point NextState -> Point -> NextState
 isEnter cells cont p
     | isCorner                = Space
     | isRightEdge             = toDown down
@@ -192,22 +192,26 @@ isEnter cells cont p
     | right == Person         = Defined Lib.Right
     | otherwise               = Space
         where
+            cellMat = unwrapCells cells
             downY = (+) 1 $ pointRow p
             upY = (pointRow p) - 1
             rightX = (+) 1 $ pointCol p
-            isDownEdge = Vector.length cells <= downY
-            isRightEdge = Vector.length (Vector.head cells) <= rightX
+            isDownEdge = cellsRowSize cells <= downY
+            isRightEdge = cellsColSize cells <= rightX
             hasRightUp = upY >= 0 && not isRightEdge
             isRightUp = hasRightUp && cont Map.! (Point rightX upY None) == Defined Down
             isCorner = isDownEdge && isRightEdge
-            down  = elemAt cells (pointCol p) downY
-            right = elemAt cells  rightX (pointRow p)
+            down  = cellsElem cells (pointCol p) downY
+            right = cellsElem cells  rightX (pointRow p)
             toRight :: Cell -> NextState
             toRight Person = Defined Lib.Right
             toRight _ = Space
             toDown :: Cell -> NextState
             toDown Person = Defined Down
             toDown _ = Space
+
+cellsElem :: Cells -> Int -> Int -> Cell
+cellsElem cells col row = elemAt (unwrapCells cells) col row
 
 haveDirection :: Cells -> Point -> Direction -> Bool
 haveDirection cells (Point col row _) dir
