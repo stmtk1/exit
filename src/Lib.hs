@@ -103,8 +103,8 @@ initPoints :: Cells -> Seq.Seq Point
 initPoints cells = Seq.fromList $ [Point 0 0 (elemAt cellMat 0 0)]
     where
         cellMat = unwrapCells cells
-        col = (Vector.length $ Vector.head cellMat) - 1
-        row = (Vector.length cellMat) - 1
+        col = cellsColSize cells - 1
+        row = cellsRowSize cells - 1
 
 elemAt :: CellMat -> Int -> Int -> Cell
 elemAt mat col row = (mat Vector.! row) Vector.! col
@@ -209,12 +209,32 @@ isEnter cells cont p
             toDown Person = Defined Down
             toDown _ = Space
 
+haveDirection :: Cells -> Point -> Direction -> Bool
+haveDirection cells (Point col row _) dir
+    = dx + col >= 0 && dy + row >= 0 && dx < colSize && dy < rowSize
+        where
+            (dx, dy) = toDiff dir
+            colSize = cellsColSize cells
+            rowSize = cellsRowSize cells
+
+toDiff :: Direction -> (Int, Int)
+toDiff Down = (0, 1)
+toDiff Up = (0, -1)
+toDiff Lib.Left = (-1, 0)
+toDiff Lib.Right = (1, 0)
+
 {-
 definedDirection :: CellMat -> Map.Map Point NextState -> Point -> NextState
 definedDirection cells cont p
     | haveRight = (-)
     | isRight
 -}
+
+cellsColSize :: Cells -> Int
+cellsColSize = Vector.length . Vector.head . unwrapCells
+
+cellsRowSize :: Cells -> Int
+cellsRowSize = Vector.length . Vector.head . unwrapCells
 
 canExit :: Map.Map Point NextState -> Point -> NextState
 canExit cont p
