@@ -28,6 +28,12 @@ data Point = Point
     , pointCell :: !Cell
     } deriving Show
 
+data Direction = Up | Right | Left | Down
+    deriving (Show, Eq)
+
+data NextState = Defined { nextStateDirection :: Direction } | Stay | Space | NotMove 
+    deriving (Eq, Show)
+
 instance Eq Point where
     (==) (Point ax ay _) (Point bx by _) = ax == bx && ay == by
 
@@ -103,8 +109,6 @@ initPoints cells = Seq.fromList $ [Point 0 0 (elemAt cellMat 0 0)]
 elemAt :: CellMat -> Int -> Int -> Cell
 elemAt mat col row = (mat Vector.! row) Vector.! col
 
-data NextState = Down | Right | Stay | Space | NotMove 
-    deriving (Eq, Show)
 
 insert :: Cells -> Map.Map Point NextState -> Point -> Map.Map Point NextState
 insert cells cont x
@@ -183,9 +187,9 @@ isEnter cells cont p
     | isRightEdge             = toDown down
     | isDownEdge && isRightUp = Space
     | isDownEdge              = toRight right
-    | (down == Person)        = Down
+    | (down == Person)        = Defined Down
     | isRightUp               = Space
-    | right == Person         = Lib.Right
+    | right == Person         = Defined Lib.Right
     | otherwise               = Space
         where
             downY = (+) 1 $ pointRow p
@@ -194,24 +198,31 @@ isEnter cells cont p
             isDownEdge = Vector.length cells <= downY
             isRightEdge = Vector.length (Vector.head cells) <= rightX
             hasRightUp = upY >= 0 && not isRightEdge
-            isRightUp = hasRightUp && cont Map.! (Point rightX upY None) == Down
+            isRightUp = hasRightUp && cont Map.! (Point rightX upY None) == Defined Down
             isCorner = isDownEdge && isRightEdge
             down  = elemAt cells (pointCol p) downY
             right = elemAt cells  rightX (pointRow p)
             toRight :: Cell -> NextState
-            toRight Person = Lib.Right
+            toRight Person = Defined Lib.Right
             toRight _ = Space
             toDown :: Cell -> NextState
-            toDown Person = Down
+            toDown Person = Defined Down
             toDown _ = Space
+
+{-
+definedDirection :: CellMat -> Map.Map Point NextState -> Point -> NextState
+definedDirection cells cont p
+    | haveRight = (-)
+    | isRight
+-}
 
 canExit :: Map.Map Point NextState -> Point -> NextState
 canExit cont p
     | isCorner = Space
     | isLeftEdge = convertTop top
     | isTopEdge = Space -- convertLeft left
-    | top == Down = Space
-    | left == Lib.Right = Space
+    | top == Defined Down = Space
+    | left == Defined Lib.Right = Space
     | otherwise = Stay
         where
             topY  = (pointRow p) - 1
@@ -222,8 +233,8 @@ canExit cont p
             top = cont Map.! (Point (pointCol p) topY None)
             left = cont Map.! (Point leftX (pointRow p) None)
             convertTop :: NextState -> NextState
-            convertTop Down = Space
+            convertTop (Defined Down) = Space
             convertTop _ = Stay
             convertLeft :: NextState -> NextState
-            convertLeft Lib.Right = Space
+            convertLeft (Defined Lib.Right) = Space
             convertLeft _ = Stay
