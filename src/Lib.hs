@@ -85,11 +85,14 @@ addEdge :: a -> Vector.Vector a -> Vector.Vector a
 addEdge x xs = (Vector.singleton x Vector.++) $ xs Vector.++ (Vector.singleton x)
 
 squareWall :: CellMat -> CellMat
+-- squareWall a = Vector.imap (\i m -> addEdge (isWall i) m) $ addEdge edgeCol a
 squareWall a = Vector.map (addEdge Wall) $ addEdge edgeCol a
     where
         edgeCol = (Vector.// [(0, None)]) $ Vector.replicate (Vector.length $ Vector.head a) Wall
+        -- isWall i = if i == 2 then None else Wall
 
 initPoints :: Cells -> Seq.Seq Point
+-- initPoints cells = Seq.fromList $ [Point 0 0 (cellsElem cells 0 0), Point 0 2 (cellsElem cells 0 2)]
 initPoints cells = Seq.fromList $ [Point 0 0 (cellsElem cells 0 0)]
     where
         col = cellsColSize cells - 1
@@ -149,21 +152,27 @@ appendPoints cells cont points
     | otherwise  = ret
         where
             next Seq.:<| _ = points
-            appended = Seq.fromList $ Maybe.mapMaybe (\t -> appendPoint cells cont next t) [(0, 1), (1, 0), (0, -1), (-1, 0)]
+            appended = Seq.fromList $ Maybe.mapMaybe (\t -> appendPoint cells cont next t) [Lib.Left, Lib.Right, Up, Down]
             ret = points Seq.>< appended
 
-appendPoint :: Cells -> Map.Map Point NextState -> Point -> (Int, Int) -> Maybe Point
-appendPoint cells cont p (x, y)
-    | invalidCol = Nothing
-    | invalidRow = Nothing
-    | otherwise  = Just (Point newY newX (cellsElem cells newY newX))
+appendPoint :: Cells -> Map.Map Point NextState -> Point -> Direction -> Maybe Point
+appendPoint cells cont p dir
+    | invalid = Nothing
+    | otherwise = Just (Point newY newX (cellsElem cells newY newX))
         where
                 col = cellsColSize cells
                 row = cellsRowSize cells
-                newY = (pointCol p) + y
-                newX = (pointRow p) + x
-                invalidCol = newX < 0 || newX >= col
-                invalidRow = newY < 0 || newY >= row
+                newPoint = addDiff p dir
+                invalid = not $ validPoint cells newPoint
+                newY = pointCol newPoint
+                newX = pointRow newPoint
+
+validPoint :: Cells -> Point -> Bool
+validPoint cells (Point x y _) = 
+    x >= 0 && y >= 0 && x < colSize && y < rowSize
+        where
+            colSize = cellsColSize cells
+            rowSize = cellsRowSize cells
 
 addDiff :: Point -> Direction -> Point
 addDiff (Point col row cell) dir = Point (col + dx) (row + dy) cell
@@ -203,12 +212,14 @@ cellsElem cells col row = elemAt (unwrapCells cells) col row
 
 haveDirection :: Cells -> Point -> Direction -> Bool
 haveDirection cells p dir
+    = validPoint cells $ addDiff p dir
+    {-
     = x >= 0 && y >= 0 && x < colSize && y < rowSize
         where
             Point x y _ = addDiff p dir
             colSize = cellsColSize cells
             rowSize = cellsRowSize cells
-
+-}
 toDiff :: Direction -> (Int, Int)
 toDiff Down = (0, 1)
 toDiff Up = (0, -1)
